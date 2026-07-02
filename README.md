@@ -2,7 +2,7 @@
 
 An AI-powered recruitment automation workflow built with **n8n**, **Groq LLM**, **GitHub API**, **Google Sheets**, and **Gmail**.
 
-This project automates the resume screening process by analyzing candidate resumes, validating email addresses, evaluating GitHub activity, calculating AI-powered scores, storing candidate data, detecting duplicates, ranking applicants, and sending automated email notifications.
+This project automates the resume screening process by extracting information from resumes, validating candidate email addresses, analyzing GitHub repositories and commit history, generating AI-powered evaluation scores, detecting duplicate applications, ranking candidates, storing results in Google Sheets, and sending automated email notifications.
 
 ---
 
@@ -16,7 +16,7 @@ This project automates the resume screening process by analyzing candidate resum
 - 🤖 Generates ATS Score using AI
 - 💻 Generates GitHub Score using AI
 - 🎯 Generates Confidence Score using AI
-- 🏆 Calculates a Final Candidate Score
+- 🏆 Calculates the Final Candidate Score
 - 📊 Stores candidate information in Google Sheets
 - 🔍 Detects duplicate candidate submissions
 - 🥇 Calculates candidate rankings
@@ -89,27 +89,23 @@ Send Email Notification
 
 ---
 
-## 📸 Workflow Screenshots
+## 📸 Project Screenshots
 
-### Main n8n Workflow
+### 🖥️ Main n8n Workflow
 
-> *(Add your workflow screenshot here after uploading it to the `images` folder.)*
+![Workflow](images/WORKFLOW.png)
 
-```md
-![Workflow](images/workflow.png)
-```
+---
 
-### Google Sheets Output
+### 📊 Google Sheets Output
 
-```md
-![Google Sheets](images/google-sheets.png)
-```
+![Google Sheets](images/GOOGLE_SHEET.png)
 
-### Email Notification
+---
 
-```md
-![Email](images/email-notification.png)
-```
+### 📧 Email Validation
+
+![Email Validation](images/EMAIL_CHECK.png)
 
 ---
 
@@ -118,36 +114,44 @@ Send Email Notification
 ```text
 AI-Powered-Resume-GitHub-Screening-System/
 │
-├── workflow.json
+├── ai-resume-screening-workflow.json
 ├── README.md
 └── images/
-    ├── workflow.png
-    ├── google-sheets.png
-    └── email-notification.png
+    ├── WORKFLOW.png
+    ├── GOOGLE_SHEET.png
+    └── EMAIL_CHECK.png
 ```
 
 ---
 
 ## ⚙️ Setup
 
-1. Clone this repository.
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/hanumansaladi/AI-Powered-Resume-GitHub-Screening-System.git
 ```
 
-2. Import the `workflow.json` file into your n8n instance.
+### 2. Import the workflow
 
-3. Configure the required credentials:
+Import the `ai-resume-screening-workflow.json` file into your n8n instance.
+
+### 3. Configure credentials
+
+Configure the following credentials inside n8n:
 
 - GitHub API
 - Groq API
 - Gmail
 - Google Sheets
 
-4. Update your API keys and Sheet IDs.
+### 4. Update configuration
 
-5. Execute the workflow.
+Update your API keys, Google Sheet IDs, and other required credentials.
+
+### 5. Execute the workflow
+
+Run the workflow and submit a resume to begin the automated screening process.
 
 ---
 
@@ -155,14 +159,14 @@ git clone https://github.com/hanumansaladi/AI-Powered-Resume-GitHub-Screening-Sy
 
 - Workflow Automation
 - AI Integration
-- REST APIs
+- REST API Integration
 - GitHub API
-- Resume Screening
-- Prompt Engineering
 - Google Sheets Automation
 - Email Automation
 - JavaScript
-- AI-based Candidate Evaluation
+- Prompt Engineering
+- Resume Screening
+- Candidate Evaluation
 
 ---
 
@@ -181,9 +185,12 @@ git clone https://github.com/hanumansaladi/AI-Powered-Resume-GitHub-Screening-Sy
 
 **Hanuman Saladi**
 
-🔗 GitHub: https://github.com/hanumansaladi
+- GitHub: https://github.com/hanumansaladi
+- LinkedIn: https://www.linkedin.com/in/hanuman-saladi-04815a322
 
-🔗 LinkedIn: https://www.linkedin.com/in/hanuman-saladi-04815a322
+---
+
+⭐ If you found this project useful, consider giving it a star on GitHub!
 
 ---
 
