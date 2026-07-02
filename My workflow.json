@@ -1,0 +1,994 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Proof Of Work",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full Name"
+            },
+            {
+              "fieldLabel": "Email"
+            },
+            {
+              "fieldLabel": "Phone Number",
+              "fieldType": "number"
+            },
+            {
+              "fieldLabel": "Resume",
+              "fieldType": "file"
+            },
+            {
+              "fieldLabel": "GitHub Profile URL"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -1632,
+        -736
+      ],
+      "id": "7cf77d74-a8a2-406d-8fb5-f4197f02eff7",
+      "name": "On form submission",
+      "webhookId": "d7176cfa-9ed5-4b8d-81b2-38a2cfac5811"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Resume",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -1440,
+        -736
+      ],
+      "id": "bbde9fd3-3d04-4337-9158-12abd7812a3d",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -512
+      ],
+      "id": "c34a3f8f-2dfa-4323-a612-01f01dbc544a",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "klWgTVtfXxWwBVU4",
+          "name": "Groq account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -512
+      ],
+      "id": "c77a624a-6670-44bb-b39a-645ad195ff6a",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "klWgTVtfXxWwBVU4",
+          "name": "Groq account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const repos = $('Fetch Repository List').all().map(item => item.json);\n\nconst now = new Date();\nlet activeRepoCount = 0;\nlet mostRecentScore = 0;\n\nfor (const repo of repos) {\n  const lastUpdate = new Date(repo.pushed_at);\n  const monthsAgo = (now - lastUpdate) / (1000 * 60 * 60 * 24 * 30);\n\n  // Count repos active in the last 12 months\n  if (monthsAgo <= 12) {\n    activeRepoCount++;\n  }\n\n  // Track the single most recent update across all repos\n  const recencyScore = monthsAgo <= 3 ? 100 : monthsAgo <= 6 ? 70 : monthsAgo <= 12 ? 40 : 10;\n  if (recencyScore > mostRecentScore) {\n    mostRecentScore = recencyScore;\n  }\n}\n\n// Active repo ratio: how many of their repos are still \"alive\"\nconst totalRepos = repos.length || 1;\nconst activeRatio = Math.min((activeRepoCount / totalRepos) * 100, 100);\n\n// Combine recency (most recent activity) + active ratio (breadth of ongoing activity)\nconst activityScore = Math.round((mostRecentScore * 0.6) + (activeRatio * 0.4));\n\nreturn {\n  json: {\n    activity_score: activityScore,\n    active_repo_count: activeRepoCount,\n    total_repos: totalRepos\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -752
+      ],
+      "id": "fdbb2a49-e75f-45ce-b597-ee26e013394a",
+      "name": "Active Score"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst resumeScore = JSON.parse($('ATS SCORE').item.json.text).ats_score;\nconst githubScore = JSON.parse($('GITHUB SCORE').item.json.text).project_score;\nconst activityScore = $('Active Score').item.json.activity_score;\n\nconst finalScore = (resumeScore * 0.40) + (githubScore * 0.50) + (activityScore * 0.10);\n\nreturn {\n  json: {\n    resume_score: resumeScore,\n    github_score: githubScore,\n    activity_score: activityScore,\n    final_score: Math.round(finalScore)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1632,
+        -208
+      ],
+      "id": "c72ba7ce-019b-4674-8d4a-2af3f8b82a57",
+      "name": "Final Score"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert technical recruiter. Analyze this candidate's GitHub repository data for a \"Data Analyst\" position.\n\nGitHub repository data:\n{{ JSON.stringify($('Fetch Repository List').all().map(item => item.json)) }}\n\nCalculate the project_score using this exact method:\n- Start at a base score of 40\n- Add 20 points if the primary language/tool matches the target role (e.g., Python, R, SQL, Jupyter Notebook for Data Analyst)\n- Add 15 points if the repo description or content clearly relates to data analysis work\n- Add 10 points if the repository has a description and is not empty\n- Add 10 points if the repository was updated within the last 6 months\n- Subtract 10 points if there are no relevant repos at all\n- Cap the final score between 0 and 100\n\nReturn ONLY valid JSON in this exact format, with no extra text, no markdown, no explanation:\n{\n  \"project_score\": <number 0-100>,\n  \"relevant_projects\": [\"project1\", \"project2\"],\n  \"red_flags\": [\"concern1 or 'none'\"],\n  \"summary\": \"short 1-2 sentence assessment\"\n}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        240,
+        -752
+      ],
+      "id": "a51a9403-7379-41a8-9845-c4206f45fff8",
+      "name": "GITHUB SCORE"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert recruiter. Analyze the following resume text for a \"Data Analyst\" position.\n\nResume text:\n{{ $('Extract from File').item.json.text }}\n\nCalculate the ats_score using this exact method:\n- Start at a base score of 50\n- Add 5 points for each relevant skill found (SQL, Excel, Power BI, Tableau, Python, R, Pandas, NumPy, Statistics, Data Visualization) — maximum +40\n- Add 5 points if the resume has clear section headings (Education, Skills, Experience)\n- Add 5 points if work/project experience is clearly relevant to data analysis\n- Subtract 5 points for each major missing core skill (SQL, Excel) beyond the first\n- Cap the final score between 0 and 100\n\nReturn ONLY valid JSON in this exact format, with no extra text, no markdown, no explanation:\n{\n  \"ats_score\": <number 0-100>,\n  \"missing_keywords\": [\"keyword1\", \"keyword2\"],\n  \"strengths\": [\"point1\", \"point2\"],\n  \"formatting_issues\": \"short note or 'none'\"\n}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "="
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -96,
+        -752
+      ],
+      "id": "443cfbf2-4fa6-4f06-9f49-5c4b4a52582c",
+      "name": "ATS SCORE"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        544,
+        -512
+      ],
+      "id": "79eb6478-1c49-4cf4-a8d3-6805483611f7",
+      "name": "Groq Chat Model2",
+      "credentials": {
+        "groqApi": {
+          "id": "9q1RGfEiMlxEopzo",
+          "name": "Groq account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA",
+          "mode": "list",
+          "cachedResultName": "ProofOfWork",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -416,
+        -224
+      ],
+      "id": "00cb9783-49a3-44b9-84d4-f812b7bf1939",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aorhfalYMOyYpYDk",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA",
+          "mode": "list",
+          "cachedResultName": "ProofOfWork",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Rank": "={{ $json.Rank }}",
+            "Email": "={{ $json.Email }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Final Score",
+              "displayName": "Final Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GitHub URL",
+              "displayName": "GitHub URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rank",
+              "displayName": "Rank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        240,
+        -224
+      ],
+      "id": "fe4856ba-27f5-4688-b687-1dc6470e4392",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BQInaV6IHvqhFg4q",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are evaluating the authenticity of a candidate's GitHub activity based on actual commit history.\n\nRepository creation date: {{ $('Fetch Repository List').first().json.created_at }}\n\nCommit history (date and message only):\n{{ JSON.stringify($('Fetch Commit History').all().map(item => ({ date: item.json.commit.author.date, message: item.json.commit.message }))) }}\n\nDetermine confidence using this exact method:\n- If there are 10+ commits spread across multiple distinct dates (different days) → confidence = \"High\"\n- If there are 3-9 commits across at least 2 distinct dates → confidence = \"Medium\"\n- If there is only 1-2 commits, or all commits happened on the same single day → confidence = \"Low\"\n\nReturn ONLY valid JSON in this exact format, with no extra text, no markdown, no explanation:\n{\n  \"confidence\": \"High\" or \"Medium\" or \"Low\",\n  \"reason\": \"short 1-2 sentence explanation based on the actual commit evidence\"\n}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        544,
+        -752
+      ],
+      "id": "53d2cdea-aac7-4a44-9683-fd9b56707adc",
+      "name": "Confidence Score"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA",
+          "mode": "list",
+          "cachedResultName": "ProofOfWork",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $('On form submission').item.json['Email'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1360,
+        -208
+      ],
+      "id": "6580c34f-648c-4312-b819-262da484e4da",
+      "name": "Check Duplicate Node",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DcmFvgC0bNAL75l8",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA",
+          "mode": "list",
+          "cachedResultName": "ProofOfWork",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1th4lFCbSndxnH6xwM73NC0PR4mrfNmEls5ZJiIeBnHA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Full Name": "={{ $('On form submission').item.json['Full Name'] }}",
+            "Email": "={{ $('On form submission').item.json['Email'] }}",
+            "Final Score": "={{ $('Final Score').item.json.final_score }}",
+            "Confidence": "={{ JSON.parse($('Confidence Score').item.json.text).confidence }}",
+            "GitHub URL": "={{ $('On form submission').item.json['GitHub Profile URL'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Final Score",
+              "displayName": "Final Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "GitHub URL",
+              "displayName": "GitHub URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rank",
+              "displayName": "Rank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -736,
+        48
+      ],
+      "id": "d450c49c-274a-405e-a045-6f43426c0a2b",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "XDDG5gYtO4UY5t0I",
+          "name": "Google Sheets account 6"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst url = $('On form submission').item.json['GitHub Profile URL'];\nconst username = url.replace(/\\/$/, '').split('/').pop();\n\nreturn {\n  json: {\n    github_username: username\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        -752
+      ],
+      "id": "fe9cd713-8843-409f-946d-eae646b310b7",
+      "name": "GitHub Extraction"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\n\nconst sorted = [...rows].sort((a, b) => b['Final Score'] - a['Final Score']);\n\nlet currentRank = 1;\n\nconst ranked = sorted.map((row, index) => {\n  if (index > 0 && sorted[index - 1]['Final Score'] === row['Final Score']) {\n  } else {\n    currentRank = index + 1;\n  }\n  return {\n    ...row,\n    Rank: currentRank\n  };\n});\n\nreturn ranked.map(row => ({ json: row }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -224
+      ],
+      "id": "8944aedc-680e-4f4b-9e2a-6a983cdfbaf5",
+      "name": "Calculating Rank"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst email = $('On form submission').item.json['Email'];\nconst name = $('On form submission').item.json['Full Name'];\n\n// 1. Name validation - starts with alphabet, min 6 chars\nconst nameRegex = /^[a-zA-Z][a-zA-Z0-9]{5,}$/;\nconst isValidName = nameRegex.test(name?.replace(/\\s/g, ''));\n\n// 2. Email format validation - must be like xxx@xxx.xxx\nconst emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;\nconst isValidFormat = emailRegex.test(email);\n\n// 3. Fake domain check\nconst fakeDomains = [\n  'mailinator.com',\n  'guerrillamail.com',\n  'tempmail.com',\n  'yopmail.com',\n  'throwaway.email',\n  'maildrop.cc',\n  'trashmail.com',\n  'fakeinbox.com',\n  'dispostable.com',\n  'spam4.me',\n  'tempr.email',\n  'sharklasers.com'\n];\n\nconst domain = email.split('@')[1]?.toLowerCase();\nconst isFakeDomain = fakeDomains.includes(domain);\n\n// Final validation\nconst isValid = isValidFormat && !isFakeDomain && isValidName;\n\n// Reason for rejection\nlet reason = 'Valid';\nif (!isValidName) reason = 'Invalid name format';\nif (!isValidFormat) reason = 'Invalid email format';\nif (isFakeDomain) reason = 'Disposable email detected';\n\nreturn {\n  json: {\n    ...$('On form submission').item.json,\n    resume_text: $('Extract from File').item.json.text,\n    is_valid: isValid,\n    detected_domain: domain,\n    validation_reason: reason\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        -736
+      ],
+      "id": "1e2d48c6-ee1f-4bcb-992d-0694ce0c116f",
+      "name": "Validate Email"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/users/{{ $json.github_username }}/repos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -560,
+        -752
+      ],
+      "id": "56186ff8-0ef7-43fe-8986-f8b5a52534ea",
+      "name": "Fetch Repository List",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "92RQE80aE8gwVEFI",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Fetch Repository List').first().json.full_name }}/commits",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -320,
+        -752
+      ],
+      "id": "1af08019-5495-4927-a405-0fd9d1d510aa",
+      "name": "Fetch Commit History",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "NPhI1AI6zKFkKKe0",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "da49668a-137f-4f66-8774-b0c19783403a",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1008,
+        -736
+      ],
+      "id": "66f06606-235e-49d7-85e1-f9eac0f3ecd8",
+      "name": "Is Email Valid?"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('On form submission').item.json['Email'] }}",
+        "subject": "Application Update – ProofOfWork",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;\">\n  <p>Dear {{ $('On form submission').item.json['Full Name'] }},</p>\n\n  <p>Thank you for applying to ProofOfWork. We appreciate the time and effort you invested in completing your application.</p>\n\n  <p>We have successfully completed the initial screening of your application.</p>\n\n  <div style=\"text-align: center; margin: 30px 0;\">\n    <p style=\"font-size: 14px; color: #666; margin-bottom: 5px;\">APPLICATION SCORE</p>\n    <p style=\"font-size: 48px; font-weight: bold; color: #2563eb; margin: 0;\">{{ $('Final Score').item.json.final_score }} / 100</p>\n  </div>\n\n  <p>Our recruitment team is currently reviewing all applications. If you are shortlisted for the next stage of the selection process, we will contact you via email within the next few days.</p>\n\n  <p>Thank you once again for your interest in joining ProofOfWork. We appreciate your patience and wish you the very best throughout the recruitment process.</p>\n\n  <p>Kind regards,<br>\n  The Recruitment Team<br>\n  ProofOfWork</p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        -224
+      ],
+      "id": "f59d84b1-81f7-4bb8-847a-c4895d8ba8f9",
+      "name": "Send Final Results",
+      "webhookId": "1c7f57cb-9f5d-4fd3-b58b-6305cc2b8e02",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "VgyWmaNspsJKiBvV",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=hanumansaladi1@gmail.com",
+        "subject": "Suspicious Application Detected - ProofOfWork",
+        "emailType": "text",
+        "message": "=A suspicious application was submitted with \nan invalid email address.\n\nDetails:\nName: {{ $json['Full Name'] }}\nEmail submitted: {{ $json['Email'] }}\nReason: {{ $json['validation_reason'] }}\n\nThis application was automatically rejected.\n\nProofOfWork System",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1008,
+        -480
+      ],
+      "id": "b4906319-f0c1-4def-9e6d-1181be858da2",
+      "name": "Notify Invalid Email",
+      "webhookId": "785f0f6e-ba51-4a03-91b2-769d339d823b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "LosDStpfAzHsEC6r",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('On form submission').item.json['Email'] }}",
+        "subject": "Application Already Received - ProofOfWork",
+        "emailType": "text",
+        "message": "=Dear {{ $('On form submission').item.json['Full Name'] }},  Thank you for your interest in ProofOfWork.  We have already received your application  for this position and it is currently  under review by our recruitment team.  Please note that resubmitting your  application will not affect the review  process.  We will contact you regarding the next  steps in due course.  Regards, Recruitment Team ProofOfWork",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -736,
+        -224
+      ],
+      "id": "e8e86a6a-e222-4fb9-8771-269ccdd87dc0",
+      "name": "Send Acknowledgement Email",
+      "webhookId": "4bd7e497-b2d6-488e-a244-781178cad524",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "b8HtZcPjh1e4VTkY",
+          "name": "Gmail account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7092e5f8-c04c-4aee-a94e-6603d3beb2c2",
+              "leftValue": "={{ $json['Email'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1056,
+        -208
+      ],
+      "id": "e349d7c9-3975-44b4-a9c0-4b4bc22b9272",
+      "name": "Candidate Exists?"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Validate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ATS SCORE",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GITHUB SCORE",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Active Score": {
+      "main": [
+        [
+          {
+            "node": "Final Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Score": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GITHUB SCORE": {
+      "main": [
+        [
+          {
+            "node": "Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ATS SCORE": {
+      "main": [
+        [
+          {
+            "node": "GITHUB SCORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Confidence Score",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Calculating Rank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence Score": {
+      "main": [
+        [
+          {
+            "node": "Active Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Node": {
+      "main": [
+        [
+          {
+            "node": "Candidate Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Extraction": {
+      "main": [
+        [
+          {
+            "node": "Fetch Repository List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculating Rank": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Email": {
+      "main": [
+        [
+          {
+            "node": "Is Email Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Repository List": {
+      "main": [
+        [
+          {
+            "node": "Fetch Commit History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Commit History": {
+      "main": [
+        [
+          {
+            "node": "ATS SCORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Email Valid?": {
+      "main": [
+        [
+          {
+            "node": "GitHub Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Invalid Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Final Results": {
+      "main": [
+        []
+      ]
+    },
+    "Send Acknowledgement Email": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidate Exists?": {
+      "main": [
+        [
+          {
+            "node": "Send Acknowledgement Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f6582b44-7ff7-4552-910a-874ceed9ac2f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2577c0afeb97e8b7c1bf0ee8133a5af9d269f872dc8ac09a514c584d0a66297e"
+  },
+  "nodeGroups": [],
+  "id": "ksmCV9veh0aJeyf8",
+  "tags": []
+}
